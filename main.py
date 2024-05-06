@@ -1,24 +1,37 @@
+import configparser
 import os
 import time
 from pathlib import Path
+
+import MAN
 import Utils
 import glob
 import HIQA
+import MOS
 import shutil
+import torch.nn as nn
 
-def preprocess_video(input_file:str, key_frame_output_dir:str, threshold:float):
+def preprocess_video(input_file:str, key_frame_output_dir:str,class_name:str, threshold:float):
     Utils.extract_frames(input_file, key_frame_output_dir)
     if not os.path.exists(key_frame_output_dir):
         os.mkdir(key_frame_output_dir)
 
-    # 读取关键帧
-    hyper_IQA = HIQA.HIQA()
+    IQAClass = nn.Module()
+    if class_name == "HyperIQA":
+        IQAClass = HIQA.HIQA()
+    elif class_name == "MOS":
+        IQAClass = MOS.MOSNet()
+        threshold = threshold / 100
+    elif class_name == "MAN":
+        IQAClass = MAN.MANNet()
+        threshold = threshold / 100
+
     files = glob.glob(os.path.join(key_frame_output_dir, '*.jpg'))
     duration = len(files)
     timeline = [False for i in range(int(duration))]
     for file in files:
         # 读取关键帧
-        resource = hyper_IQA.inference(file)
+        resource = IQAClass.forward(file)
 
         file = file[0: len(file) - 4]
         idx = str.find(file, 'frame-')
@@ -60,9 +73,17 @@ if __name__ == "__main__":
     if  os.path.exists(output_dir):
         shutil.rmtree("keyframes")
 
+    # 读取配置文件
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+
+    # 获取配置文件中指定的类名
+    class_name = config['General']['class_name']
+    threshold = float( config['General']['threshold'])
+
     for file in find_mp4_files(data_path):
         print(file)
-        preprocess_video(file, output_dir, 70)
+        preprocess_video(file, output_dir, class_name, threshold)
 
 
 

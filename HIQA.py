@@ -348,8 +348,9 @@ class ResNetBackbone(nn.Module):
 
 
 
-class HIQA:
+class HIQA(nn.Module):
     def __init__(self):
+        super(HIQA, self).__init__()
         self.model_hyper = HyperNet(16, 112, 224, 112, 56, 28, 14, 7).cuda()
         self.model_hyper.train(False)
         # load our pre-trained model on the koniq-10k dataset
@@ -380,6 +381,9 @@ class HIQA:
         # Quality prediction
         pred = model_target(paras['target_in_vec'])  # 'paras['target_in_vec']' is the input to target net
         return float(pred.item())
+
+    def forward(self, img):
+        return self.inference(img)
 
 if __name__ == '__main__':
     hiqa = HIQA()
