@@ -60,10 +60,10 @@ def preprocess_video(input_file:str, key_frame_output_dir:str,class_name:str, th
                 ret_dict[output_name] = np.mean(resource_arr[behind:front-1])
             behind = front
 
-    if (front - 1 - behind > 1):
-        output_name = "output_video/" + str(time.time()) + "-" + str(behind) + "-" + str(front - 1) + ".mp4"
-        Utils.cut_video(input_file, output_name, str(behind), str(front - 1 - behind))
-        ret_dict[output_name] = np.mean(resource_arr[behind:front - 1])
+    if (front - behind > 1):
+        output_name = "output_video/" + str(time.time()) + "-" + str(behind) + "-" + str(front ) + ".mp4"
+        Utils.cut_video(input_file, output_name, str(behind), str(front  - behind))
+        ret_dict[output_name] = np.mean(resource_arr[behind:front ])
 
 
     if os.path.exists(key_frame_output_dir):
