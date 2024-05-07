@@ -1,7 +1,9 @@
 import configparser
+import csv
 import os
 import time
 from pathlib import Path
+import numpy as np
 
 import MAN
 import Utils
@@ -16,6 +18,7 @@ def preprocess_video(input_file:str, key_frame_output_dir:str,class_name:str, th
     if not os.path.exists(key_frame_output_dir):
         os.mkdir(key_frame_output_dir)
 
+    ret_dict = dict()
     IQAClass = nn.Module()
     if class_name == "HyperIQA":
         IQAClass = HIQA.HIQA()
@@ -29,6 +32,7 @@ def preprocess_video(input_file:str, key_frame_output_dir:str,class_name:str, th
     files = glob.glob(os.path.join(key_frame_output_dir, '*.jpg'))
     duration = len(files)
     timeline = [False for i in range(int(duration))]
+    resource_arr = [0 for i in range(int(duration))]
     for file in files:
         # 读取关键帧
         resource = IQAClass.forward(file)
@@ -37,27 +41,35 @@ def preprocess_video(input_file:str, key_frame_output_dir:str,class_name:str, th
         idx = str.find(file, 'frame-')
         file = file[idx + 6:len(file)]
         print(" ----- " + str(resource) + " ----- " + file)
+        resource_arr[int(file) - 1] = resource
         if (resource > threshold):
             timeline[int(file) - 1] = True
 
     if not os.path.exists("output_video"):
         os.mkdir("output_video")
 
-    is_continuous = False
-    for i in range(len(timeline)):
-        if timeline[i]:
-            if not is_continuous:
-                start_time = i
-            is_continuous = True
+    front = 0
+    behind = 0
+    for front in range(len(timeline)):
+        if timeline[front]:
+            continue
         else:
-            if is_continuous:
-                end_time = i
-                Utils.cut_video(input_file, "output_video/" +str(time.time())+"-"+ str(start_time) + "-" + str(end_time) + ".mp4",
-                                str(start_time), str(end_time - start_time))
-            is_continuous = False
+            if (front -1  - behind > 1):
+                output_name = "output_video/" +str(time.time())+"-"+ str(behind) + "-" + str(front-1) + ".mp4"
+                Utils.cut_video(input_file, output_name,   str(behind), str(front -1 - behind))
+                ret_dict[output_name] = np.mean(resource_arr[behind:front-1])
+            behind = front
 
-    shutil.rmtree("keyframes")
-    #shutil.rmtree("output_video")
+    if (front - 1 - behind > 1):
+        output_name = "output_video/" + str(time.time()) + "-" + str(behind) + "-" + str(front - 1) + ".mp4"
+        Utils.cut_video(input_file, output_name, str(behind), str(front - 1 - behind))
+        ret_dict[output_name] = np.mean(resource_arr[behind:front - 1])
+
+
+    if os.path.exists(key_frame_output_dir):
+        shutil.rmtree(key_frame_output_dir)
+
+    return ret_dict
 
 def find_mp4_files(directory):
     mp4_files = []
@@ -81,9 +93,18 @@ if __name__ == "__main__":
     class_name = config['General']['class_name']
     threshold = float( config['General']['threshold'])
 
-    for file in find_mp4_files(data_path):
-        print(file)
-        preprocess_video(file, output_dir, class_name, threshold)
+    csv_file_path = 'data.csv'
+    if os.path.exists(csv_file_path):
+        os.remove(csv_file_path)
+
+    # 写入CSV文件
+    with open(csv_file_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+
+        for file in find_mp4_files(data_path):
+            print(file)
+            data_dict = preprocess_video(file, output_dir, class_name, threshold)
+            writer.writerows(data_dict.items())
 
 
 
